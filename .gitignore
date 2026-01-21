@@ -9,6 +9,10 @@ Thumbs.db
 *.log
 log.txt
 
+# Local runtime PID files
+.proxy-*.pid
+.test-*.pid
+
 # IDE
 .vscode/
 .idea/

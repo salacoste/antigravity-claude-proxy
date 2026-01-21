@@ -555,6 +555,10 @@ app.get('/account-limits', async (req, res) => {
         const responseData = {
             timestamp: new Date().toLocaleString(),
             totalAccounts: allAccounts.length,
+            // Include selected config fields needed by WebUI (single-call sync)
+            config: {
+                maxAccounts: config.maxAccounts
+            },
             models: sortedModels,
             modelConfig: config.modelMapping || {},
             accounts: accountLimits.map(acc => {

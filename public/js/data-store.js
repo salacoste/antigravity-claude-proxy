@@ -66,6 +66,9 @@ document.addEventListener('alpine:init', () => {
                         this.models = data.models;
                         this.modelConfig = data.modelConfig || {};
                         this.usageHistory = data.usageHistory || {};
+                        if (typeof data.maxAccounts === 'number') {
+                            this.maxAccounts = data.maxAccounts;
+                        }
                         
                         // Don't show loading on initial load if we have cache
                         this.initialLoad = false;
@@ -85,6 +88,7 @@ document.addEventListener('alpine:init', () => {
                     models: this.models,
                     modelConfig: this.modelConfig,
                     usageHistory: this.usageHistory,
+                    maxAccounts: this.maxAccounts,
                     timestamp: Date.now()
                 };
                 localStorage.setItem('ag_data_cache', JSON.stringify(cacheData));
@@ -116,6 +120,10 @@ document.addEventListener('alpine:init', () => {
                     this.models = data.models;
                 }
                 this.modelConfig = data.modelConfig || {};
+                // Sync config fields from server (single-call source of truth)
+                if (data.config && typeof data.config.maxAccounts === 'number') {
+                    this.maxAccounts = data.config.maxAccounts;
+                }
 
                 // Store usage history if included (for dashboard)
                 if (data.history) {
