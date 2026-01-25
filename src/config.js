@@ -16,6 +16,11 @@ const DEFAULT_CONFIG = {
     defaultCooldownMs: 10000,  // 10 seconds
     maxWaitBeforeErrorMs: 120000, // 2 minutes
     maxAccounts: 10, // Maximum number of accounts allowed
+    // Rate limit handling (matches opencode-antigravity-auth)
+    rateLimitDedupWindowMs: 2000,  // 2 seconds - prevents concurrent retry storms
+    maxConsecutiveFailures: 3,     // Before applying extended cooldown
+    extendedCooldownMs: 60000,     // 1 minute extended cooldown
+    maxCapacityRetries: 5,         // Max retries for capacity exhaustion
     modelMapping: {},
     // Account selection strategy configuration
     accountSelection: {
@@ -34,6 +39,11 @@ const DEFAULT_CONFIG = {
             maxTokens: 50,            // Maximum token capacity
             tokensPerMinute: 6,       // Regeneration rate
             initialTokens: 50         // Starting tokens
+        },
+        quota: {
+            lowThreshold: 0.10,       // 10% - reduce score
+            criticalThreshold: 0.05,  // 5% - exclude from candidates
+            staleMs: 300000           // 5 min - max age of quota data to trust
         }
     }
 };
@@ -88,7 +98,14 @@ function loadConfig() {
 loadConfig();
 
 export function getPublicConfig() {
-    return { ...config };
+    // Create a deep copy and redact sensitive fields
+    const publicConfig = JSON.parse(JSON.stringify(config));
+
+    // Redact sensitive values
+    if (publicConfig.webuiPassword) publicConfig.webuiPassword = '********';
+    if (publicConfig.apiKey) publicConfig.apiKey = '********';
+
+    return publicConfig;
 }
 
 export function saveConfig(updates) {
