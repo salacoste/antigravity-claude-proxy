@@ -55,7 +55,7 @@ document.addEventListener('alpine:init', () => {
 
                     // Check TTL
                     if (data.timestamp && (Date.now() - data.timestamp > CACHE_TTL)) {
-                        console.log('Cache expired, skipping restoration');
+                        if (window.UILogger) window.UILogger.debug('Cache expired, skipping restoration');
                         localStorage.removeItem('ag_data_cache');
                         return;
                     }
@@ -73,11 +73,11 @@ document.addEventListener('alpine:init', () => {
                         // Don't show loading on initial load if we have cache
                         this.initialLoad = false;
                         this.computeQuotaRows();
-                        console.log('Restored data from cache');
+                        if (window.UILogger) window.UILogger.debug('Restored data from cache');
                     }
                 }
             } catch (e) {
-                console.warn('Failed to load cache', e);
+                if (window.UILogger) window.UILogger.debug('Failed to load cache', e.message);
             }
         },
 
@@ -93,7 +93,7 @@ document.addEventListener('alpine:init', () => {
                 };
                 localStorage.setItem('ag_data_cache', JSON.stringify(cacheData));
             } catch (e) {
-                console.warn('Failed to save cache', e);
+                if (window.UILogger) window.UILogger.debug('Failed to save cache', e.message);
             }
         },
 
@@ -135,6 +135,7 @@ document.addEventListener('alpine:init', () => {
 
                 this.lastUpdated = new Date().toLocaleTimeString();
             } catch (error) {
+                // Keep error logging for actual fetch failures
                 console.error('Fetch error:', error);
                 const store = Alpine.store('global');
                 store.showToast(store.t('connectionLost'), 'error');
@@ -245,6 +246,7 @@ document.addEventListener('alpine:init', () => {
                 let minResetTime = null;
 
                 this.accounts.forEach(acc => {
+                    if (acc.enabled === false) return;
                     if (this.filters.account !== 'all' && acc.email !== this.filters.account) return;
 
                     const limit = acc.limits?.[modelId];
@@ -360,6 +362,7 @@ document.addEventListener('alpine:init', () => {
                 const quotaInfo = [];
                 // Use ALL accounts (no account filter)
                 this.accounts.forEach(acc => {
+                    if (acc.enabled === false) return;
                     const limit = acc.limits?.[modelId];
                     if (!limit) return;
                     const pct = limit.remainingFraction !== null ? Math.round(limit.remainingFraction * 100) : 0;

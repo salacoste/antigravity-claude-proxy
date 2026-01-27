@@ -188,13 +188,19 @@ export function isThinkingModel(modelName) {
 }
 
 // Google OAuth configuration (from opencode-antigravity-auth)
+// OAuth callback port - configurable via environment variable for Windows compatibility (issue #176)
+// Windows may reserve ports in range 49152-65535 for Hyper-V/WSL2/Docker, causing EACCES errors
+const OAUTH_CALLBACK_PORT = parseInt(process.env.OAUTH_CALLBACK_PORT || '51121', 10);
+const OAUTH_CALLBACK_FALLBACK_PORTS = [51122, 51123, 51124, 51125, 51126];
+
 export const OAUTH_CONFIG = {
     clientId: '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com',
     clientSecret: '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',
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
     userInfoUrl: 'https://www.googleapis.com/oauth2/v1/userinfo',
-    callbackPort: 51121,
+    callbackPort: OAUTH_CALLBACK_PORT,
+    callbackFallbackPorts: OAUTH_CALLBACK_FALLBACK_PORTS,
     scopes: [
         'https://www.googleapis.com/auth/cloud-platform',
         'https://www.googleapis.com/auth/userinfo.email',
@@ -236,7 +242,7 @@ export const DEFAULT_PRESETS = [
             ANTHROPIC_MODEL: 'claude-opus-4-5-thinking',
             ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-5-thinking',
             ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5-thinking',
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-2.5-flash-lite[1m]',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5',
             CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-4-5-thinking',
             ENABLE_EXPERIMENTAL_MCP_CLI: 'true'
         }
@@ -249,7 +255,7 @@ export const DEFAULT_PRESETS = [
             ANTHROPIC_MODEL: 'gemini-3-pro-high[1m]',
             ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3-pro-high[1m]',
             ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3-flash[1m]',
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-2.5-flash-lite[1m]',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3-flash[1m]',
             CLAUDE_CODE_SUBAGENT_MODEL: 'gemini-3-flash[1m]',
             ENABLE_EXPERIMENTAL_MCP_CLI: 'true'
         }
