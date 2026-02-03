@@ -30,12 +30,17 @@ export async function loadAccounts(configPath = ACCOUNT_CONFIG_PATH) {
             return {
                 ...acc,
                 lastUsed: acc.lastUsed || null,
-                enabled: acc.enabled !== false,
+                enabled: acc.enabled !== false, // Default to true if not specified
+                // Reset invalid flag on startup - give accounts a fresh chance to refresh
                 isInvalid: false,
                 invalidReason: null,
                 modelRateLimits: acc.modelRateLimits || {},
+                // Subscription and quota tracking
                 subscription: acc.subscription || { tier: 'unknown', projectId: null, detectedAt: null },
                 quota: acc.quota || { models: {}, lastChecked: null },
+                // Quota threshold settings (per-account and per-model overrides)
+                quotaThreshold: acc.quotaThreshold, // undefined means use global
+                modelQuotaThresholds: acc.modelQuotaThresholds || {},
                 fingerprint: hasFingerprint ? acc.fingerprint : generateFingerprint()
             };
         });
@@ -127,6 +132,9 @@ export async function saveAccounts(configPath, accounts, settings, activeIndex) 
                 lastUsed: acc.lastUsed,
                 subscription: acc.subscription || { tier: 'unknown', projectId: null, detectedAt: null },
                 quota: acc.quota || { models: {}, lastChecked: null },
+                // Persist quota threshold settings
+                quotaThreshold: acc.quotaThreshold,  // undefined omitted from JSON
+                modelQuotaThresholds: Object.keys(acc.modelQuotaThresholds || {}).length > 0 ? acc.modelQuotaThresholds : undefined,
                 fingerprint: acc.fingerprint || undefined
             })),
             settings: settings,

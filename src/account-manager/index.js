@@ -5,6 +5,7 @@
  */
 
 import { ACCOUNT_CONFIG_PATH } from '../constants.js';
+import { config } from '../config.js';
 import { loadAccounts, loadDefaultAccount, saveAccounts } from './storage.js';
 import {
     isAllRateLimited as checkAllRateLimited,
@@ -33,7 +34,6 @@ import {
 } from './credentials.js';
 import { createStrategy, getStrategyLabel, DEFAULT_STRATEGY } from './strategies/index.js';
 import { logger } from '../utils/logger.js';
-import { config } from '../config.js';
 import { generateFingerprint } from '../fingerprint/index.js';
 
 export class AccountManager {
@@ -439,7 +439,10 @@ export class AccountManager {
                     deviceId: a.fingerprint.deviceId,
                     userAgent: a.fingerprint.userAgent,
                     createdAt: a.fingerprint.createdAt
-                } : null
+                } : null,
+                // Include quota threshold settings
+                quotaThreshold: a.quotaThreshold,
+                modelQuotaThresholds: a.modelQuotaThresholds || {}
             }))
         };
     }

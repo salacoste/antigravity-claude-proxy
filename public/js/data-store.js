@@ -13,6 +13,7 @@ document.addEventListener('alpine:init', () => {
         modelConfig: {}, // Model metadata (hidden, pinned, alias)
         quotaRows: [], // Filtered view
         usageHistory: {}, // Usage statistics history (from /account-limits?includeHistory=true)
+        globalQuotaThreshold: 0, // Global minimum quota threshold (fraction 0-0.99)
         maxAccounts: 10, // Maximum number of accounts allowed (from config)
         loading: false,
         initialLoad: true, // Track first load for skeleton screen
@@ -61,16 +62,19 @@ document.addEventListener('alpine:init', () => {
                     }
 
                     // Basic validity check
-                    if (data.accounts && data.models) {
-                        this.accounts = data.accounts;
-                        this.models = data.models;
-                        this.modelConfig = data.modelConfig || {};
-                        this.usageHistory = data.usageHistory || {};
-                        if (typeof data.maxAccounts === 'number') {
-                            this.maxAccounts = data.maxAccounts;
-                        }
-                        
-                        // Don't show loading on initial load if we have cache
+	                if (data.accounts && data.models) {
+	                        this.accounts = data.accounts;
+	                        this.models = data.models;
+	                        this.modelConfig = data.modelConfig || {};
+	                        this.usageHistory = data.usageHistory || {};
+	                        if (typeof data.globalQuotaThreshold === 'number') {
+	                            this.globalQuotaThreshold = data.globalQuotaThreshold;
+	                        }
+	                        if (typeof data.maxAccounts === 'number') {
+	                            this.maxAccounts = data.maxAccounts;
+	                        }
+	                        
+	                        // Don't show loading on initial load if we have cache
                         this.initialLoad = false;
                         this.computeQuotaRows();
                         if (window.UILogger) window.UILogger.debug('Restored data from cache');
@@ -81,18 +85,19 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        saveToCache() {
-            try {
-                const cacheData = {
-                    accounts: this.accounts,
-                    models: this.models,
-                    modelConfig: this.modelConfig,
-                    usageHistory: this.usageHistory,
-                    maxAccounts: this.maxAccounts,
-                    timestamp: Date.now()
-                };
-                localStorage.setItem('ag_data_cache', JSON.stringify(cacheData));
-            } catch (e) {
+	        saveToCache() {
+	            try {
+	                const cacheData = {
+	                    accounts: this.accounts,
+	                    models: this.models,
+	                    modelConfig: this.modelConfig,
+	                    usageHistory: this.usageHistory,
+	                    globalQuotaThreshold: this.globalQuotaThreshold,
+	                    maxAccounts: this.maxAccounts,
+	                    timestamp: Date.now()
+	                };
+	                localStorage.setItem('ag_data_cache', JSON.stringify(cacheData));
+	            } catch (e) {
                 if (window.UILogger) window.UILogger.debug('Failed to save cache', e.message);
             }
         },
@@ -119,16 +124,27 @@ document.addEventListener('alpine:init', () => {
                 if (data.models && data.models.length > 0) {
                     this.models = data.models;
                 }
-                this.modelConfig = data.modelConfig || {};
-                // Sync config fields from server (single-call source of truth)
-                if (data.config && typeof data.config.maxAccounts === 'number') {
-                    this.maxAccounts = data.config.maxAccounts;
-                }
+	                this.modelConfig = data.modelConfig || {};
 
-                // Store usage history if included (for dashboard)
-                if (data.history) {
-                    this.usageHistory = data.history;
-                }
+	                // Sync config fields from server (single-call source of truth)
+	                if (typeof data.maxAccounts === 'number') {
+	                    this.maxAccounts = data.maxAccounts;
+	                } else if (data.config && typeof data.config.maxAccounts === 'number') {
+	                    this.maxAccounts = data.config.maxAccounts;
+	                }
+
+	                if (typeof data.globalQuotaThreshold === 'number') {
+	                    this.globalQuotaThreshold = data.globalQuotaThreshold;
+	                } else if (data.config && typeof data.config.globalQuotaThreshold === 'number') {
+	                    this.globalQuotaThreshold = data.config.globalQuotaThreshold;
+	                } else {
+	                    this.globalQuotaThreshold = 0;
+	                }
+
+	                // Store usage history if included (for dashboard)
+	                if (data.history) {
+	                    this.usageHistory = data.history;
+	                }
 
                 this.saveToCache(); // Save fresh data
                 this.computeQuotaRows();
@@ -244,6 +260,8 @@ document.addEventListener('alpine:init', () => {
                 let totalQuotaSum = 0;
                 let validAccountCount = 0;
                 let minResetTime = null;
+                let maxEffectiveThreshold = 0;
+                const globalThreshold = this.globalQuotaThreshold || 0;
 
                 this.accounts.forEach(acc => {
                     if (acc.enabled === false) return;
@@ -263,11 +281,26 @@ document.addEventListener('alpine:init', () => {
                         minResetTime = limit.resetTime;
                     }
 
+                    // Resolve effective threshold: per-model > per-account > global
+                    const accModelThreshold = acc.modelQuotaThresholds?.[modelId];
+                    const accThreshold = acc.quotaThreshold;
+                    const effective = accModelThreshold ?? accThreshold ?? globalThreshold;
+                    if (effective > maxEffectiveThreshold) {
+                        maxEffectiveThreshold = effective;
+                    }
+
+                    // Determine threshold source for display
+                    let thresholdSource = 'global';
+                    if (accModelThreshold !== undefined) thresholdSource = 'model';
+                    else if (accThreshold !== undefined) thresholdSource = 'account';
+
                     quotaInfo.push({
                         email: acc.email.split('@')[0],
                         fullEmail: acc.email,
                         pct: pct,
-                        resetTime: limit.resetTime
+                        resetTime: limit.resetTime,
+                        thresholdPct: Math.round(effective * 100),
+                        thresholdSource
                     });
                 });
 
@@ -275,6 +308,10 @@ document.addEventListener('alpine:init', () => {
                 const avgQuota = validAccountCount > 0 ? Math.round(totalQuotaSum / validAccountCount) : 0;
 
                 if (!showExhausted && minQuota === 0) return;
+
+                // Check if thresholds vary across accounts
+                const uniqueThresholds = new Set(quotaInfo.map(q => q.thresholdPct));
+                const hasVariedThresholds = uniqueThresholds.size > 1;
 
                 rows.push({
                     modelId,
@@ -287,7 +324,9 @@ document.addEventListener('alpine:init', () => {
                     quotaInfo,
                     pinned: !!config.pinned,
                     hidden: !!isHidden, // Use computed visibility
-                    activeCount: quotaInfo.filter(q => q.pct > 0).length
+                    activeCount: quotaInfo.filter(q => q.pct > 0).length,
+                    effectiveThresholdPct: Math.round(maxEffectiveThreshold * 100),
+                    hasVariedThresholds
                 });
             });
 
